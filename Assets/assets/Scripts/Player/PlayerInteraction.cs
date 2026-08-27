@@ -13,6 +13,15 @@ public class PlayerInteraction : MonoBehaviour
     [SerializeField] private LayerMask interactionLayers;
 
     private IInteractable currentInteractable;
+    private PickupItem currentPickup;
+
+    private PlayerItemHolder itemHolder;
+
+    private void Awake()
+    {
+        itemHolder =
+            GetComponent<PlayerItemHolder>();
+    }
 
     private void Start()
     {
@@ -23,28 +32,52 @@ public class PlayerInteraction : MonoBehaviour
     {
         CheckForInteractable();
 
-        if (InteractionPressed())
+        HandleInput();
+    }
+
+    private void HandleInput()
+    {
+        if (Keyboard.current != null &&
+            Keyboard.current.eKey.wasPressedThisFrame)
         {
             Interact();
         }
+
+        if (Mouse.current != null &&
+            Mouse.current.leftButton.wasPressedThisFrame)
+        {
+            HandlePrimaryAction();
+        }
     }
 
-    private bool InteractionPressed()
+    private void HandlePrimaryAction()
     {
-        bool keyboardPressed =
-            Keyboard.current != null &&
-            Keyboard.current.eKey.wasPressedThisFrame;
+        if (currentPickup != null)
+        {
+            if (itemHolder != null &&
+                itemHolder.HasItem)
+            {
+                itemHolder.TrySwap(currentPickup);
+            }
+            else
+            {
+                itemHolder?.TryPickup(currentPickup);
+            }
 
-        bool mousePressed =
-            Mouse.current != null &&
-            Mouse.current.leftButton.wasPressedThisFrame;
+            return;
+        }
 
-        return keyboardPressed || mousePressed;
+        if (itemHolder != null &&
+            itemHolder.HasItem)
+        {
+            itemHolder.DropCurrentItem();
+        }
     }
 
     private void CheckForInteractable()
     {
         currentInteractable = null;
+        currentPickup = null;
 
         if (playerCamera == null)
         {
@@ -57,26 +90,57 @@ public class PlayerInteraction : MonoBehaviour
             playerCamera.transform.forward
         );
 
-        if (Physics.Raycast(
+        if (!Physics.Raycast(
                 ray,
                 out RaycastHit hit,
                 interactionDistance,
                 interactionLayers,
                 QueryTriggerInteraction.Ignore))
         {
-            PickupItem pickup =
-                hit.collider.GetComponentInParent<PickupItem>();
+            HideInteractionText();
+            return;
+        }
 
-            if (pickup != null)
+        PickupItem pickup =
+            hit.collider.GetComponentInParent<PickupItem>();
+
+        if (pickup != null)
+        {
+            currentPickup = pickup;
+            currentInteractable = pickup;
+
+            if (itemHolder != null &&
+                itemHolder.HasItem)
             {
-                currentInteractable = pickup;
-
+                ShowInteractionText(
+                    "Swap for " +
+                    pickup.InteractionText
+                        .Replace("Pick Up ", "")
+                );
+            }
+            else
+            {
                 ShowInteractionText(
                     pickup.InteractionText
                 );
-
-                return;
             }
+
+            return;
+        }
+
+        IInteractable interactable =
+            hit.collider.GetComponentInParent<IInteractable>();
+
+        if (interactable != null)
+        {
+            currentInteractable =
+                interactable;
+
+            ShowInteractionText(
+                interactable.InteractionText
+            );
+
+            return;
         }
 
         HideInteractionText();
@@ -90,7 +154,8 @@ public class PlayerInteraction : MonoBehaviour
         currentInteractable.Interact();
     }
 
-    private void ShowInteractionText(string text)
+    private void ShowInteractionText(
+        string text)
     {
         if (interactionText == null)
             return;
@@ -98,7 +163,9 @@ public class PlayerInteraction : MonoBehaviour
         interactionText.text =
             "[E / LMB] " + text;
 
-        interactionText.gameObject.SetActive(true);
+        interactionText.gameObject.SetActive(
+            true
+        );
     }
 
     private void HideInteractionText()
@@ -106,6 +173,8 @@ public class PlayerInteraction : MonoBehaviour
         if (interactionText == null)
             return;
 
-        interactionText.gameObject.SetActive(false);
+        interactionText.gameObject.SetActive(
+            false
+        );
     }
 }

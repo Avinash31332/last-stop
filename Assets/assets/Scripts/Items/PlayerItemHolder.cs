@@ -1,7 +1,10 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 public class PlayerItemHolder : MonoBehaviour
 {
+    public static PlayerItemHolder Instance { get; private set; }
+
     [Header("References")]
     [SerializeField] private Transform hand;
 
@@ -11,25 +14,40 @@ public class PlayerItemHolder : MonoBehaviour
 
     private GameObject currentHeldObject;
     private PickupItem currentItem;
+    private IUsableItem usableItem;
 
-    public bool HasItem => currentItem != null;
+    public bool HasItem =>
+        currentItem != null;
 
-    public PickupItem CurrentItem => currentItem;
+    public PickupItem CurrentItem =>
+        currentItem;
+
+    private void Awake()
+    {
+        if (Instance != null &&
+            Instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
+
+        Instance = this;
+    }
 
     private void Update()
     {
-        HandleDropInput();
+        HandleItemInput();
     }
 
-    private void HandleDropInput()
+    private void HandleItemInput()
     {
-        if (!HasItem)
+        if (Keyboard.current == null)
             return;
 
-        if (UnityEngine.InputSystem.Keyboard.current != null &&
-            UnityEngine.InputSystem.Keyboard.current.gKey.wasPressedThisFrame)
+        if (Mouse.current != null &&
+            Mouse.current.rightButton.wasPressedThisFrame)
         {
-            DropCurrentItem();
+            UseCurrentItem();
         }
     }
 
@@ -38,10 +56,34 @@ public class PlayerItemHolder : MonoBehaviour
         if (item == null)
             return false;
 
-        // Only one item can be held.
         if (HasItem)
             return false;
 
+        return PickupItemInternal(item);
+    }
+
+    public bool TrySwap(PickupItem newItem)
+{
+    if (newItem == null)
+        return false;
+
+    if (!HasItem)
+        return PickupItemInternal(newItem);
+
+    GameObject newHeldPrefab =
+        newItem.GetHeldPrefab();
+
+    if (newHeldPrefab == null)
+        return false;
+
+    DropCurrentItem();
+
+    return PickupItemInternal(newItem);
+}
+
+    private bool PickupItemInternal(
+        PickupItem item)
+    {
         GameObject heldPrefab =
             item.GetHeldPrefab();
 
@@ -65,7 +107,23 @@ public class PlayerItemHolder : MonoBehaviour
 
         currentItem = item;
 
+        usableItem =
+            currentHeldObject.GetComponent<IUsableItem>();
+
+        item.OnPickedUp();
+
         return true;
+    }
+
+    private void UseCurrentItem()
+    {
+        if (!HasItem)
+            return;
+
+        if (usableItem == null)
+            return;
+
+        usableItem.Use();
     }
 
     public void DropCurrentItem()
@@ -75,8 +133,10 @@ public class PlayerItemHolder : MonoBehaviour
 
         Vector3 dropPosition =
             hand.position +
-            hand.forward * dropForwardDistance +
-            Vector3.up * dropUpwardOffset;
+            hand.forward *
+            dropForwardDistance +
+            Vector3.up *
+            dropUpwardOffset;
 
         Quaternion dropRotation =
             hand.rotation;
@@ -90,5 +150,14 @@ public class PlayerItemHolder : MonoBehaviour
 
         currentHeldObject = null;
         currentItem = null;
+        usableItem = null;
+    }
+
+    private void OnDestroy()
+    {
+        if (Instance == this)
+        {
+            Instance = null;
+        }
     }
 }

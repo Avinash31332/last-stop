@@ -21,28 +21,30 @@ public class PickupItem : MonoBehaviour, IInteractable
     {
         if (worldRigidbody == null)
         {
-            worldRigidbody =
-                GetComponent<Rigidbody>();
+            worldRigidbody = GetComponent<Rigidbody>();
         }
 
-        if (worldRigidbody != null)
-        {
-            worldRigidbody.isKinematic = true;
-            worldRigidbody.useGravity = false;
-        }
+        SetWorldPhysics(false);
     }
 
     public void Interact()
     {
         PlayerItemHolder holder =
-            FindFirstObjectByType<PlayerItemHolder>();
+            PlayerItemHolder.Instance;
 
         if (holder == null)
             return;
 
-        if (!holder.TryPickup(this))
-            return;
+        holder.TryPickup(this);
+    }
 
+    public GameObject GetHeldPrefab()
+    {
+        return heldPrefab;
+    }
+
+    public void OnPickedUp()
+    {
         if (pickupSound != null)
         {
             AudioSource.PlayClipAtPoint(
@@ -51,12 +53,9 @@ public class PickupItem : MonoBehaviour, IInteractable
             );
         }
 
-        gameObject.SetActive(false);
-    }
+        SetWorldPhysics(false);
 
-    public GameObject GetHeldPrefab()
-    {
-        return heldPrefab;
+        gameObject.SetActive(false);
     }
 
     public void DropIntoWorld(
@@ -70,11 +69,19 @@ public class PickupItem : MonoBehaviour, IInteractable
 
         gameObject.SetActive(true);
 
-        if (worldRigidbody != null)
-        {
-            worldRigidbody.isKinematic = false;
-            worldRigidbody.useGravity = true;
+        SetWorldPhysics(true);
+    }
 
+    private void SetWorldPhysics(bool active)
+    {
+        if (worldRigidbody == null)
+            return;
+
+        worldRigidbody.isKinematic = !active;
+        worldRigidbody.useGravity = active;
+
+        if (active)
+        {
             worldRigidbody.linearVelocity =
                 Vector3.zero;
 
@@ -82,6 +89,14 @@ public class PickupItem : MonoBehaviour, IInteractable
                 Vector3.zero;
 
             worldRigidbody.WakeUp();
+        }
+        else
+        {
+            worldRigidbody.linearVelocity =
+                Vector3.zero;
+
+            worldRigidbody.angularVelocity =
+                Vector3.zero;
         }
     }
 }
